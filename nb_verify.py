@@ -23,7 +23,7 @@ def nbparse(message=None):
     i = 0
     m = {}
     for v in line.rsplit(';'):
-        if message_keys[i] == "epoch":
+        if message_keys[i] == "epoch" or message_keys[i] == "sequence":
             m[message_keys[i]] = int(v)
         else:
             m[message_keys[i]] = v
@@ -42,7 +42,7 @@ for line in sys.stdin:
     m = {}
     m = nbparse(message=line)
     print m['hmac']
-    message = m['header']+";"+str(m['epoch'])+";"+m['sequence']+";"
+    message = m['header']+";"+str(m['epoch'])+";"+str(m['sequence'])+";"
     if m['hmac'] == nbsign(message=message):
         print "valid signature for "+message
         timedelta = deltafromnow(epoch=m['epoch'])
