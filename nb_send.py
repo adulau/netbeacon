@@ -42,6 +42,7 @@ usage = "usage: %prog [options] <netbeacon messages>"
 parser = OptionParser(usage)
 parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
 parser.add_option("-i","--iteration", dest="iteration", type=int, help="set the number of interation for sending the netbeacon")
+parser.add_option("-d","--destination", dest="destination", help="set the destination IPv4 address (default: 127.0.0.1)")
 
 (options, args) = parser.parse_args()
 
@@ -59,8 +60,11 @@ else:
 if not options.iteration:
     options.iteration=10
 
+if not options.destination:
+    options.destination="127.0.0.1"
+
 for x in range(seqstart,seqstart+options.iteration):
-    nbsend(destination="127.0.0.1", payload=nbmessage(x), logging=True)
+    nbsend(destination=options.destination, payload=nbmessage(x), logging=True)
     if options.storeseq:
         s['seq'] = x
 
