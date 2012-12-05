@@ -2,6 +2,7 @@ import socket
 import datetime
 import time
 import sys
+from optparse import OptionParser
 
 try:
     from hashlib import sha1
@@ -37,6 +38,30 @@ def deltafromnow(epoch=None):
     now = time.mktime(t.timetuple())
     return now-epoch
 
+def validateseq(seq=None, update=True):
+    if seq is None:
+        return False
+    if not 'seq' in s:
+        s['seq'] = seq
+        return True
+    elif seq == (s['seq']+1):
+        s['seq'] = s['seq'] + 1
+        return s['seq']
+    else:
+        return False
+
+usage = "usage: %prog [options] <netbeacon messages>"
+parser = OptionParser(usage)
+#parser.add_option("-i","--id", dest="id", help="id of the netbeacon message processed")
+parser.add_option("-t","--timedelta",dest="timedelta",  action='store_true', help="show timedelta")
+parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
+
+(options, args) = parser.parse_args()
+
+if options.storeseq:
+    import shelve
+    s = shelve.open("netbeacon.seq")
+
 for line in sys.stdin:
     line = line.rstrip()
     m = {}
@@ -45,9 +70,17 @@ for line in sys.stdin:
     message = m['header']+";"+str(m['epoch'])+";"+str(m['sequence'])+";"
     if m['hmac'] == nbsign(message=message):
         print "valid signature for "+message
-        timedelta = deltafromnow(epoch=m['epoch'])
-        print "Time delay "+str(timedelta)
+        if options.timedelta:
+            timedelta = deltafromnow(epoch=m['epoch'])
+            print "Time delay "+str(timedelta)
+        if options.storeseq:
+            seq = validateseq(seq=m['sequence'])
+            if seq:
+                print "Sequence ok "+str(seq)
+            else:
+                print "Sequence nok - received ("+str(m['sequence'])+") expected ("+str(s['seq']+1)+")"
     else:
         print "(!) invalid signature for "+message
 
-    #signature = line.rsplit(';')[-1:]
+if options.storeseq:
+    s.close()
