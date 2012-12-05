@@ -41,6 +41,7 @@ def nbsend(destination=None,payload=None, logging=False):
 usage = "usage: %prog [options] <netbeacon messages>"
 parser = OptionParser(usage)
 parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
+parser.add_option("-i","--iteration", dest="iteration", type=int, help="set the number of interation for sending the netbeacon")
 
 (options, args) = parser.parse_args()
 
@@ -55,9 +56,13 @@ if options.storeseq:
 else:
     seqstart = 1
 
-for x in range(seqstart,seqstart+10):
+if not options.iteration:
+    options.iteration=10
+
+for x in range(seqstart,seqstart+options.iteration):
     nbsend(destination="127.0.0.1", payload=nbmessage(x), logging=True)
     if options.storeseq:
         s['seq'] = x
+
 if options.storeseq:
     s.close()
