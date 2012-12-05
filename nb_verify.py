@@ -43,7 +43,7 @@ def validateseq(seq=None, update=True):
         return False
     if not 'seq' in s:
         s['seq'] = seq
-        return True
+        return s['seq']
     elif seq == (s['seq']+1):
         s['seq'] = s['seq'] + 1
         return s['seq']
@@ -83,4 +83,5 @@ for line in sys.stdin:
         print "(!) invalid signature for "+message
 
 if options.storeseq:
+    s['seq'] = s['seq']-1
     s.close()

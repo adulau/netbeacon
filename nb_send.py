@@ -1,6 +1,8 @@
 import socket
 import datetime
 import time
+from optparse import OptionParser
+
 try:
     from hashlib import sha1
 except ImportError:
@@ -36,5 +38,26 @@ def nbsend(destination=None,payload=None, logging=False):
     sock.sendto(payload, (destination, 12345))
     return True
 
-for x in range(1,10):
+usage = "usage: %prog [options] <netbeacon messages>"
+parser = OptionParser(usage)
+parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
+
+(options, args) = parser.parse_args()
+
+if options.storeseq:
+    import shelve
+    s = shelve.open("netbeacon-send.seq")
+    if 'seq' not in s:
+        s['seq'] = 1
+        seqstart = s['seq']
+    else:
+        seqstart = s['seq']
+else:
+    seqstart = 1
+
+for x in range(seqstart,seqstart+10):
     nbsend(destination="127.0.0.1", payload=nbmessage(x), logging=True)
+    if options.storeseq:
+        s['seq'] = x
+if options.storeseq:
+    s.close()
