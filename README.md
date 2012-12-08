@@ -44,6 +44,17 @@ Here is a serie of 3 netbeacon messages extracted from 3 UDP packets:
 netbeacon - usage
 -----------------
 
+### How to use it? ###
+
+On a device where you able to send packets on the monitored/tapped network, you
+can send beacons using nb_send.py
+
+    python nb_send.py -s -i 3 -d 1.2.3.4
+
+Where you are processing your network capture, you can run the following:
+
+    python nb_collect.py -i dag0 | python nb_verify.py -s -t
+
 ### nb_send.py ###
 
         Usage: nb_send.py [options]
@@ -82,6 +93,7 @@ netbeacon - usage
           -t, --timedelta    show timedelta
           -s, --storeseq     store sequence and validate sequence
           -p PSK, --psk=PSK  pre-shared key used by the HMAC-SHA1 (default: netbeacon)
+
 
 
 License
