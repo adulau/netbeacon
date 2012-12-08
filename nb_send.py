@@ -38,7 +38,7 @@ def nbsend(destination=None,payload=None, logging=False):
     sock.sendto(payload, (destination, 12345))
     return True
 
-usage = "usage: %prog [options] <netbeacon messages>"
+usage = "usage: %prog [options]"
 parser = OptionParser(usage)
 parser.add_option("-p","--psk", dest="psk", help="pre-shared key used by the HMAC-SHA1 (default: netbeacon)")
 parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
