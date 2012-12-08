@@ -6,7 +6,7 @@ import sys
 from optparse import OptionParser
 
 
-usage = "usage: %prog [options] <netbeacon messages>"
+usage = "usage: %prog [options]"
 parser = OptionParser(usage)
 parser.add_option("-i","--interface", dest="interface", help="live capture on interface (default:lo)")
 parser.add_option("-r","--read", dest="filedump", help="read pcap file")
