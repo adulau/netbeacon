@@ -19,12 +19,12 @@ netbeacon - packet format
 The netbeacon format is a simple ASCII format encapsulated in an UDP
 packet. The format is the following:
 
-header;epoch;sequence;hmac
+    header;epoch;sequence;hmac
 
-The current header is nb
-The epoch value (in UTC format)
-The sequence an unsigned integer
-and the HMAC-SHA1 signature.
+* The current header is nb
+* The epoch value (in UTC format)
+* The sequence an unsigned integer
+* and the HMAC-SHA1 signature.
 
 Each message is encapsulated in UDP and by default using port 12345.
 
@@ -33,8 +33,7 @@ and netbeacon recipient to ensure packet integrity using HMAC (SHA1).
 There is a default key "netbeacon" but we highly recommend to set your
 own for your systems.
 
-sample netbeacon messages
-+++++++++++++++++++++++++
+### sample netbeacon messages ###
 
 Here is a serie of 3 netbeacon messages extracted from 3 UDP packets:
  
@@ -45,8 +44,7 @@ Here is a serie of 3 netbeacon messages extracted from 3 UDP packets:
 netbeacon - usage
 -----------------
 
-nb_send.py
-++++++++++
+### nb_send.py ###
 
         Usage: nb_send.py [options]
 
@@ -62,8 +60,7 @@ nb_send.py
           -v, --verbose         output netbeacon sent
 
 
-nb_collect.py
-+++++++++++++
+### nb_collect.py ###
 
         Usage: nb_collect.py [options]
 
@@ -76,8 +73,7 @@ nb_collect.py
           -e EXTENDED, --extended=EXTENDED
                                 enable extended format including pcap timestamp
 
-nb_verify.py
-++++++++++++
+### nb_verify.py ###
 
         Usage: nb_verify.py [options] <netbeacon messages>
 
