@@ -55,8 +55,14 @@ parser = OptionParser(usage)
 #parser.add_option("-i","--id", dest="id", help="id of the netbeacon message processed")
 parser.add_option("-t","--timedelta",dest="timedelta",  action='store_true', help="show timedelta")
 parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
+parser.add_option("-p","--psk", dest="psk", help="pre-shared key used by the HMAC-SHA1 (default: netbeacon)")
 
 (options, args) = parser.parse_args()
+
+if options.psk:
+    psk = options.psk
+else:
+    psk = "netbeacon"
 
 if options.storeseq:
     import shelve
@@ -68,7 +74,7 @@ for line in sys.stdin:
     m = nbparse(message=line)
     print m['hmac']
     message = m['header']+";"+str(m['epoch'])+";"+str(m['sequence'])+";"
-    if m['hmac'] == nbsign(message=message):
+    if m['hmac'] == nbsign(message=message, psk=psk):
         print "valid signature for "+message
         if options.timedelta:
             timedelta = deltafromnow(epoch=m['epoch'])
