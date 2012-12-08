@@ -16,7 +16,7 @@ def nbsign(message=None, psk="netbeacon"):
     return auth.hexdigest()
 
 # format: nb;1354687980;1;500f5e18df881bb1dd22ee3c468209669a13e4ef
-def nbmessage(seq=1):
+def nbmessage(seq=1, psk="netbeacon"):
     m = ""
     m = m + "nb"
     m = m + ";"
@@ -26,7 +26,7 @@ def nbmessage(seq=1):
     m = m + ";"
     m = m + str(seq)
     m = m + ";"
-    m = m + nbsign(message=m)
+    m = m + nbsign(message=m,psk=psk)
     return m
 
 def nbsend(destination=None,payload=None, logging=False):
@@ -40,11 +40,17 @@ def nbsend(destination=None,payload=None, logging=False):
 
 usage = "usage: %prog [options] <netbeacon messages>"
 parser = OptionParser(usage)
+parser.add_option("-p","--psk", dest="psk", help="pre-shared key used by the HMAC-SHA1 (default: netbeacon)")
 parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
 parser.add_option("-i","--iteration", dest="iteration", type=int, help="set the number of interation for sending the netbeacon")
 parser.add_option("-d","--destination", dest="destination", help="set the destination IPv4 address (default: 127.0.0.1)")
-
+parser.add_option("-v","--verbose", dest="verbose", action='store_true', help="output netbeacon sent")
 (options, args) = parser.parse_args()
+
+if options.psk:
+    psk = options.psk
+else:
+    psk = "netbeacon"
 
 if options.storeseq:
     import shelve
@@ -64,7 +70,7 @@ if not options.destination:
     options.destination="127.0.0.1"
 
 for x in range(seqstart,seqstart+options.iteration):
-    nbsend(destination=options.destination, payload=nbmessage(x), logging=True)
+    nbsend(destination=options.destination, payload=nbmessage(x, psk=psk), logging=options.verbose)
     if options.storeseq:
         s['seq'] = x
 
