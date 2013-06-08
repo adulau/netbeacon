@@ -43,7 +43,7 @@ parser = OptionParser(usage)
 parser.add_option("-p","--psk", dest="psk", help="pre-shared key used by the HMAC-SHA1 (default: netbeacon)")
 parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
 parser.add_option("-i","--iteration", dest="iteration", type=int, help="set the number of interation for sending the netbeacon")
-parser.add_option("-d","--destination", dest="destination", help="set the destination IPv4 address (default: 127.0.0.1)")
+parser.add_option("-d","--destination", dest="destinations", action="append", help="set the destination(s) IPv4 address (default: 127.0.0.1)")
 parser.add_option("-v","--verbose", dest="verbose", action='store_true', help="output netbeacon sent")
 (options, args) = parser.parse_args()
 
@@ -52,27 +52,34 @@ if options.psk:
 else:
     psk = "netbeacon"
 
+destinations = []
+
+if not options.destinations:
+    destinations.append("127.0.0.1")
+else:
+    for v in options.destinations:
+        destinations.append(v)
+
 if options.storeseq:
     import shelve
     s = shelve.open("netbeacon-send.seq")
-    if 'seq' not in s:
-        s['seq'] = 1
-        seqstart = s['seq']
-    else:
-        seqstart = s['seq']
+    for destination in destinations:
+        k = 'seq:' + str(destination)
+        print (k)
+        if k not in s:
+            s[k] = 1
+        seqstart = s[k]+1
 else:
     seqstart = 1
 
 if not options.iteration:
     options.iteration=10
 
-if not options.destination:
-    options.destination="127.0.0.1"
-
-for x in range(seqstart,seqstart+options.iteration):
-    nbsend(destination=options.destination, payload=nbmessage(x, psk=psk), logging=options.verbose)
-    if options.storeseq:
-        s['seq'] = x
+for destination in destinations:
+    for x in range(seqstart,seqstart+options.iteration):
+        nbsend(destination=destination, payload=nbmessage(x, psk=psk), logging=options.verbose)
+        if options.storeseq:
+            s['seq:'+str(destination)] = x
 
 if options.storeseq:
     s.close()
