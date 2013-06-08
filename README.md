@@ -67,7 +67,7 @@ Where you are processing your network capture, you can run the following:
           -i ITERATION, --iteration=ITERATION
                                 set the number of interation for sending the netbeacon
           -d DESTINATION, --destination=DESTINATION
-                                set the destination IPv4 address (default: 127.0.0.1)
+                                set the destination(s) IPv4 address (default: 127.0.0.1)
           -v, --verbose         output netbeacon sent
 
 
@@ -104,4 +104,4 @@ it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Copyright (c) 2012 Alexandre Dulaunoy - https://github.com/adulau/
+Copyright (c) 2012,2013 Alexandre Dulaunoy - https://github.com/adulau/
