@@ -65,7 +65,7 @@ if options.storeseq:
     s = shelve.open("netbeacon-send.seq")
     for destination in destinations:
         k = 'seq:' + str(destination)
-        if logging:
+        if options.verbose:
             print (k)
         if k not in s:
             s[k] = 1
