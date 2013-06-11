@@ -2,7 +2,7 @@ import dpkt
 import pcap
 import re
 import sys
-
+import socket
 from optparse import OptionParser
 
 
@@ -10,7 +10,7 @@ usage = "usage: %prog [options]"
 parser = OptionParser(usage)
 parser.add_option("-i","--interface", dest="interface", help="live capture on interface (default:lo)")
 parser.add_option("-r","--read", dest="filedump", help="read pcap file")
-parser.add_option("-e","--extended", dest="extended", help="enable extended format including pcap timestamp")
+parser.add_option("-e","--extended", dest="extended", action="store_true", help="enable extended format including pcap timestamp")
 
 (options, args) = parser.parse_args()
 
@@ -32,11 +32,12 @@ decode = { pcap.DLT_LOOP:dpkt.loopback.Loopback,
 try:
     sys.stderr.write('listening on %s: %s' % (pc.name, pc.filter))
     for ts, pkt in pc:
-        ip = decode(pkt).data
+        eth = dpkt.ethernet.Ethernet(pkt)
+        ip = eth.data
         udp = ip.data
         if re.search("^nb", udp.data):
             if options.extended:
-                print str(ts)+"|"+udp.data
+                print str(ts)+"|"+str(socket.inet_ntoa(ip.src))+"|"+udp.data
             else:
                 print udp.data
 except KeyboardInterrupt:
