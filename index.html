@@ -1,37 +1,38 @@
 <!DOCTYPE html>
 <html>
-
   <head>
-    <meta charset='utf-8' />
-    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
-    <meta name="description" content="Netbeacon : netbeacon - monitoring your network capture, NIDS or network analysis process" />
-
-    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
-
-    <title>Netbeacon</title>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>Netbeacon by adulau</title>
   </head>
 
   <body>
+    <div id="container">
+      <div class="inner">
 
-    <!-- HEADER -->
-    <div id="header_wrap" class="outer">
-        <header class="inner">
-          <a id="forkme_banner" href="https://github.com/adulau/netbeacon">View on GitHub</a>
-
-          <h1 id="project_title">Netbeacon</h1>
-          <h2 id="project_tagline">netbeacon - monitoring your network capture, NIDS or network analysis process</h2>
-
-            <section id="downloads">
-              <a class="zip_download_link" href="https://github.com/adulau/netbeacon/zipball/master">Download this project as a .zip file</a>
-              <a class="tar_download_link" href="https://github.com/adulau/netbeacon/tarball/master">Download this project as a tar.gz file</a>
-            </section>
+        <header>
+          <h1>Netbeacon</h1>
+          <h2>netbeacon - monitoring your network capture, NIDS or network analysis process</h2>
         </header>
-    </div>
 
-    <!-- MAIN CONTENT -->
-    <div id="main_content_wrap" class="outer">
-      <section id="main_content" class="inner">
-        <h1>netbeacon - monitoring your network capture</h1>
+        <section id="downloads" class="clearfix">
+          <a href="https://github.com/adulau/netbeacon/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+          <a href="https://github.com/adulau/netbeacon/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
+          <a href="https://github.com/adulau/netbeacon" id="view-on-github" class="button"><span>View on GitHub</span></a>
+        </section>
+
+        <hr>
+
+        <section id="main_content">
+          <h1>
+<a name="netbeacon---monitoring-your-network-capture" class="anchor" href="#netbeacon---monitoring-your-network-capture"><span class="octicon octicon-link"></span></a>netbeacon - monitoring your network capture</h1>
 
 <p>netbeacon is a set of free software tools to send beacons over
 the network to test the accuracy and the precision of your network
@@ -44,7 +45,8 @@ data interception devices, NIDS, DPI ...):</p>
 <li>Time inconsistencies between devices.</li>
 <li>Finding missing packets or its (re)ordering.</li>
 <li>Watchdog to verify an operational network capture.</li>
-</ul><h2>netbeacon - packet format</h2>
+</ul><h2>
+<a name="netbeacon---packet-format" class="anchor" href="#netbeacon---packet-format"><span class="octicon octicon-link"></span></a>netbeacon - packet format</h2>
 
 <p>The netbeacon format is a simple ASCII format encapsulated in an UDP
 packet. The format is the following:</p>
@@ -64,7 +66,8 @@ and netbeacon recipient to ensure packet integrity using HMAC (SHA1).
 There is a default key "netbeacon" but we highly recommend to set your
 own for your systems.</p>
 
-<h3>sample netbeacon messages</h3>
+<h3>
+<a name="sample-netbeacon-messages" class="anchor" href="#sample-netbeacon-messages"><span class="octicon octicon-link"></span></a>sample netbeacon messages</h3>
 
 <p>Here is a serie of 3 netbeacon messages extracted from 3 UDP packets:</p>
 
@@ -73,9 +76,11 @@ own for your systems.</p>
     nb;1354960619;103;854207f54c1c4be97bdf4cd4a0d1068731848698
 </code></pre>
 
-<h2>netbeacon - usage</h2>
+<h2>
+<a name="netbeacon---usage" class="anchor" href="#netbeacon---usage"><span class="octicon octicon-link"></span></a>netbeacon - usage</h2>
 
-<h3>How to use it?</h3>
+<h3>
+<a name="how-to-use-it" class="anchor" href="#how-to-use-it"><span class="octicon octicon-link"></span></a>How to use it?</h3>
 
 <p>On a device where you able to send packets on the monitored/tapped network, you
 can send beacons using nb_send.py</p>
@@ -88,7 +93,8 @@ can send beacons using nb_send.py</p>
 <pre><code>python nb_collect.py -i dag0 | python nb_verify.py -s -t
 </code></pre>
 
-<h3>nb_send.py</h3>
+<h3>
+<a name="nb_sendpy" class="anchor" href="#nb_sendpy"><span class="octicon octicon-link"></span></a>nb_send.py</h3>
 
 <pre><code>    Usage: nb_send.py [options]
 
@@ -100,11 +106,12 @@ can send beacons using nb_send.py</p>
       -i ITERATION, --iteration=ITERATION
                             set the number of interation for sending the netbeacon
       -d DESTINATION, --destination=DESTINATION
-                            set the destination IPv4 address (default: 127.0.0.1)
+                            set the destination(s) IPv4 address (default: 127.0.0.1)
       -v, --verbose         output netbeacon sent
 </code></pre>
 
-<h3>nb_collect.py</h3>
+<h3>
+<a name="nb_collectpy" class="anchor" href="#nb_collectpy"><span class="octicon octicon-link"></span></a>nb_collect.py</h3>
 
 <pre><code>    Usage: nb_collect.py [options]
 
@@ -118,7 +125,8 @@ can send beacons using nb_send.py</p>
                             enable extended format including pcap timestamp
 </code></pre>
 
-<h3>nb_verify.py</h3>
+<h3>
+<a name="nb_verifypy" class="anchor" href="#nb_verifypy"><span class="octicon octicon-link"></span></a>nb_verify.py</h3>
 
 <pre><code>    Usage: nb_verify.py [options] &lt;netbeacon messages&gt;
 
@@ -129,26 +137,24 @@ can send beacons using nb_send.py</p>
       -p PSK, --psk=PSK  pre-shared key used by the HMAC-SHA1 (default: netbeacon)
 </code></pre>
 
-<h1>License</h1>
+<h1>
+<a name="license" class="anchor" href="#license"><span class="octicon octicon-link"></span></a>License</h1>
 
 <p>netbeacon is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.</p>
 
-<p>Copyright (c) 2012 Alexandre Dulaunoy - <a href="https://github.com/adulau/">https://github.com/adulau/</a></p>
-      </section>
+<p>Copyright (c) 2012,2013 Alexandre Dulaunoy - <a href="https://github.com/adulau/">https://github.com/adulau/</a></p>
+        </section>
+
+        <footer>
+          Netbeacon is maintained by <a href="https://github.com/adulau">adulau</a><br>
+          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.
+        </footer>
+
+        
+      </div>
     </div>
-
-    <!-- FOOTER  -->
-    <div id="footer_wrap" class="outer">
-      <footer class="inner">
-        <p class="copyright">Netbeacon maintained by <a href="https://github.com/adulau">adulau</a></p>
-        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
-      </footer>
-    </div>
-
-    
-
   </body>
 </html>
