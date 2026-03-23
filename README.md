@@ -124,6 +124,37 @@ python3 nb_send.py -i 1 -v | python3 nb_verify.py
 python3 nb_collect.py -i eth0 | python3 nb_verify.py -s -t -p mysharedsecret
 ```
 
+## Use-case overview
+
+A common netbeacon use case is confirming that a packet-capture pipeline is actually seeing the traffic you expect. You can emit signed UDP beacons from a test host, capture them with your sensor or from a saved `.pcap`, and verify that the packets arrive intact, in order, and with an acceptable delay.
+
+```mermaid
+flowchart LR
+    A["Test host runs<br/>nb_send.py"] -->|Signed UDP beacons<br/>port 12345| B["Network / SPAN / TAP"]
+    B --> C["Packet capture sensor<br/>tcpdump, Zeek tap, IDS, or libpcap"]
+    C --> D["nb_collect.py
+Live interface or .pcap file"]
+    D --> E["Decoded beacon stream"]
+    E --> F["nb_verify.py
+Check HMAC, sequence, and delay"]
+    F --> G{"What does the result tell you?"}
+    G -->|Valid signature + sequence ok| H["Capture path is seeing the beacons"]
+    G -->|Missing or out-of-order sequence| I["Possible packet loss, drops, or reordering"]
+    G -->|Large time delta| J["Possible latency, buffering, or clock drift"]
+    G -->|Invalid signature| K["Wrong PSK or payload corruption"]
+```
+
+### Example: checking whether a pcap pipeline is working
+
+1. Run `nb_send.py` on a host that should traverse the monitored network path.
+2. Capture on the sensor interface with `nb_collect.py -i <iface>` or inspect a saved file with `nb_collect.py -r capture.pcap`.
+3. Pipe the decoded packets into `nb_verify.py`.
+4. Review the output:
+   - `valid signature` means the expected signed beacon arrived intact.
+   - `Sequence ok` means the capture path is not obviously dropping or reordering the observed beacons.
+   - `Time delay` helps estimate how long the beacon took to show up in the capture/analysis path.
+   - Missing output usually means the sensor, filter, mirror/SPAN, or `.pcap` file is not seeing the beacon traffic at all.
+
 ## Typical workflow
 
 1. Send beacons from a host on the monitored network.
