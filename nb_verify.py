@@ -1,93 +1,105 @@
-import socket
+#!/usr/bin/env python3
+"""Verify netbeacon messages from stdin."""
+
+from __future__ import annotations
+
 import datetime
-import time
+import hmac
+import shelve
 import sys
+import time
+from hashlib import sha1
 from optparse import OptionParser
 
-try:
-    from hashlib import sha1
-except ImportError:
-    from sha import sha as sha1
-import hmac
+DEFAULT_PSK = "netbeacon"
+SEQUENCE_DB = "netbeacon.seq"
+MESSAGE_KEYS = ["header", "epoch", "sequence", "hmac"]
 
-## nb;epochvalue;sq;hmac
-## hmacfunc("nb;epochvalue;sq;", psk)
-def nbsign(message=None, psk="netbeacon"):
-    auth = hmac.new(psk, message, sha1)
-    return auth.hexdigest()
 
-message_keys = ['header','epoch','sequence','hmac']
+def nbsign(message: str, psk: str = DEFAULT_PSK) -> str:
+    """Return the HMAC-SHA1 signature for a netbeacon payload prefix."""
+    return hmac.new(psk.encode("utf-8"), message.encode("ascii"), sha1).hexdigest()
 
-def nbparse(message=None):
-    if message is None:
+
+def nbparse(message: str) -> dict[str, int | str] | bool:
+    """Parse a netbeacon message into its component fields."""
+    if not message:
         return False
-    i = 0
-    m = {}
-    for v in line.rsplit(';'):
-        if message_keys[i] == "epoch" or message_keys[i] == "sequence":
-            m[message_keys[i]] = int(v)
+
+    parts = message.rsplit(";")
+    if len(parts) != len(MESSAGE_KEYS):
+        return False
+
+    parsed: dict[str, int | str] = {}
+    for index, value in enumerate(parts):
+        key = MESSAGE_KEYS[index]
+        if key in {"epoch", "sequence"}:
+            parsed[key] = int(value)
         else:
-            m[message_keys[i]] = v
-        i = i +1
-    return m
+            parsed[key] = value
+    return parsed
 
-def deltafromnow(epoch=None):
-    if epoch is None:
-        return False
-    t = datetime.datetime.now()
-    now = time.mktime(t.timetuple())
-    return now-epoch
 
-def validateseq(seq=None, update=True):
-    if seq is None:
-        return False
-    if not 'seq' in s:
-        s['seq'] = seq
-        return s['seq']
-    elif seq == (s['seq']+1):
-        s['seq'] = s['seq'] + 1
-        return s['seq']
-    else:
-        return False
+def deltafromnow(epoch: int) -> float:
+    """Return the seconds elapsed since the beacon epoch."""
+    now = time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple())
+    return now - epoch
 
-usage = "usage: %prog [options] <netbeacon messages>"
-parser = OptionParser(usage)
-#parser.add_option("-i","--id", dest="id", help="id of the netbeacon message processed")
-parser.add_option("-t","--timedelta",dest="timedelta",  action='store_true', help="show timedelta")
-parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
-parser.add_option("-p","--psk", dest="psk", help="pre-shared key used by the HMAC-SHA1 (default: netbeacon)")
 
-(options, args) = parser.parse_args()
+def validateseq(store, seq: int):
+    """Validate and update the saved sequence number."""
+    if "seq" not in store:
+        store["seq"] = seq
+        return store["seq"]
+    if seq == (store["seq"] + 1):
+        store["seq"] = store["seq"] + 1
+        return store["seq"]
+    return False
 
-if options.psk:
-    psk = options.psk
-else:
-    psk = "netbeacon"
 
-if options.storeseq:
-    import shelve
-    s = shelve.open("netbeacon.seq")
+def main() -> int:
+    usage = "usage: %prog [options] <netbeacon messages>"
+    parser = OptionParser(usage)
+    parser.add_option("-t", "--timedelta", dest="timedelta", action="store_true", help="show timedelta")
+    parser.add_option("-s", "--storeseq", dest="storeseq", action="store_true", help="store sequence and validate sequence")
+    parser.add_option("-p", "--psk", dest="psk", help=f"pre-shared key used by the HMAC-SHA1 (default: {DEFAULT_PSK})")
+    options, _args = parser.parse_args()
 
-for line in sys.stdin:
-    line = line.rstrip()
-    m = {}
-    m = nbparse(message=line)
-    print m['hmac']
-    message = m['header']+";"+str(m['epoch'])+";"+str(m['sequence'])+";"
-    if m['hmac'] == nbsign(message=message, psk=psk):
-        print "valid signature for "+message
-        if options.timedelta:
-            timedelta = deltafromnow(epoch=m['epoch'])
-            print "Time delay "+str(timedelta)
-        if options.storeseq:
-            seq = validateseq(seq=m['sequence'])
-            if seq:
-                print "Sequence ok "+str(seq)
+    psk = options.psk or DEFAULT_PSK
+    sequence_store = shelve.open(SEQUENCE_DB) if options.storeseq else None
+
+    try:
+        for line in sys.stdin:
+            line = line.rstrip()
+            parsed = nbparse(message=line)
+            if not parsed:
+                print(f"(!) invalid message format: {line}")
+                continue
+
+            message = f"{parsed['header']};{parsed['epoch']};{parsed['sequence']};"
+            expected_hmac = nbsign(message=message, psk=psk)
+            if parsed["hmac"] == expected_hmac:
+                print(f"valid signature for {message}")
+                if options.timedelta:
+                    print(f"Time delay {deltafromnow(epoch=int(parsed['epoch']))}")
+                if sequence_store is not None:
+                    seq = validateseq(sequence_store, int(parsed["sequence"]))
+                    if seq:
+                        print(f"Sequence ok {seq}")
+                    else:
+                        print(
+                            f"Sequence nok - received ({parsed['sequence']}) expected ({sequence_store['seq'] + 1})"
+                        )
             else:
-                print "Sequence nok - received ("+str(m['sequence'])+") expected ("+str(s['seq']+1)+")"
-    else:
-        print "(!) invalid signature for "+message
+                print(f"(!) invalid signature for {message}")
+    finally:
+        if sequence_store is not None:
+            if "seq" in sequence_store:
+                sequence_store["seq"] = sequence_store["seq"] - 1
+            sequence_store.close()
 
-if options.storeseq:
-    s['seq'] = s['seq']-1
-    s.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

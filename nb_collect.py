@@ -1,47 +1,72 @@
-import dpkt
-import pcap
+#!/usr/bin/env python3
+"""Collect netbeacon UDP packets from a live interface or pcap input."""
+
+from __future__ import annotations
+
 import re
-import sys
 import socket
+import sys
 from optparse import OptionParser
 
+NETBEACON_PATTERN = re.compile(r"^nb")
 
-usage = "usage: %prog [options]"
-parser = OptionParser(usage)
-parser.add_option("-i","--interface", dest="interface", help="live capture on interface (default:lo)")
-parser.add_option("-r","--read", dest="filedump", help="read pcap file")
-parser.add_option("-e","--extended", dest="extended", action="store_true", help="enable extended format including pcap timestamp")
 
-(options, args) = parser.parse_args()
+def decode_payload(payload: bytes) -> str:
+    """Decode a UDP payload to text if possible."""
+    return payload.decode("ascii", errors="replace")
 
-if options.interface:
-    interface = options.interface
-else:
-    interface = "lo"
 
-if options.filedump:
-    interface = options.filedump
+def main() -> int:
+    usage = "usage: %prog [options]"
+    parser = OptionParser(usage)
+    parser.add_option("-i", "--interface", dest="interface", help="live capture on interface (default: lo)")
+    parser.add_option("-r", "--read", dest="filedump", help="read pcap file")
+    parser.add_option("-e", "--extended", dest="extended", action="store_true", help="enable extended format including pcap timestamp")
+    options, _args = parser.parse_args()
 
-pc = pcap.pcap(interface)
-pc.setfilter("port 12345 and udp")
+    interface = options.interface or "lo"
+    if options.filedump:
+        interface = options.filedump
 
-decode = { pcap.DLT_LOOP:dpkt.loopback.Loopback,
-           pcap.DLT_NULL:dpkt.loopback.Loopback,
-           pcap.DLT_EN10MB:dpkt.ethernet.Ethernet }[pc.datalink()]
+    try:
+        import dpkt
+        import pcap
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "nb_collect.py requires the dpkt and pcap packages. Install them with `python3 -m pip install dpkt pcap`."
+        ) from exc
 
-try:
-    sys.stderr.write('listening on %s: %s' % (pc.name, pc.filter))
-    for ts, pkt in pc:
-        eth = dpkt.ethernet.Ethernet(pkt)
-        ip = eth.data
-        udp = ip.data
-        if re.search("^nb", udp.data):
-            if options.extended:
-                print str(ts)+"|"+str(socket.inet_ntoa(ip.src))+"|"+udp.data
-            else:
-                print udp.data
-except KeyboardInterrupt:
-    nrecv, ndrop, nifdrop = pc.stats()
-    sys.stderr.write('\n%d packets received by filter' % nrecv)
-    sys.stderr.write('%d packets dropped by kernel' % ndrop)
+    pc = pcap.pcap(interface)
+    pc.setfilter("port 12345 and udp")
 
+    decode_map = {
+        pcap.DLT_LOOP: dpkt.loopback.Loopback,
+        pcap.DLT_NULL: dpkt.loopback.Loopback,
+        pcap.DLT_EN10MB: dpkt.ethernet.Ethernet,
+    }
+    decoder = decode_map.get(pc.datalink())
+    if decoder is None:
+        raise RuntimeError(f"unsupported datalink type: {pc.datalink()}")
+
+    try:
+        sys.stderr.write(f"listening on {pc.name}: {pc.filter}")
+        for ts, pkt in pc:
+            frame = decoder(pkt)
+            ip = frame.data
+            udp = ip.data
+            payload = decode_payload(udp.data)
+            if NETBEACON_PATTERN.search(payload):
+                if options.extended:
+                    print(f"{ts}|{socket.inet_ntoa(ip.src)}|{payload}")
+                else:
+                    print(payload)
+    except KeyboardInterrupt:
+        nrecv, ndrop, _nifdrop = pc.stats()
+        sys.stderr.write(f"\n{nrecv} packets received by filter")
+        sys.stderr.write(f"{ndrop} packets dropped by kernel")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
