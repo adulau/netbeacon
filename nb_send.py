@@ -1,86 +1,96 @@
-import socket
+#!/usr/bin/env python3
+"""Send netbeacon UDP beacons."""
+
+from __future__ import annotations
+
 import datetime
-import time
-from optparse import OptionParser
-
-try:
-    from hashlib import sha1
-except ImportError:
-    from sha import sha as sha1
 import hmac
+import shelve
+import socket
+import sys
+import time
+from hashlib import sha1
+from optparse import OptionParser
+from typing import Iterable
 
-## nb;epochvalue;sq;hmac
-## hmacfunc("nb;epochvalue;sq;", psk)
-def nbsign(message=None, psk="netbeacon"):
-    auth = hmac.new(psk, message, sha1)
-    return auth.hexdigest()
+DEFAULT_PSK = "netbeacon"
+DEFAULT_PORT = 12345
+DEFAULT_DESTINATION = "127.0.0.1"
+DEFAULT_ITERATIONS = 10
+SEQUENCE_DB = "netbeacon-send.seq"
 
-# format: nb;1354687980;1;500f5e18df881bb1dd22ee3c468209669a13e4ef
-def nbmessage(seq=1, psk="netbeacon"):
-    m = ""
-    m = m + "nb"
-    m = m + ";"
-    t = datetime.datetime.now()
-    now = time.mktime(t.timetuple())
-    m = m + (str(int(now)))
-    m = m + ";"
-    m = m + str(seq)
-    m = m + ";"
-    m = m + nbsign(message=m,psk=psk)
-    return m
 
-def nbsend(destination=None,payload=None, logging=False):
-    if destination is None:
+def nbsign(message: str, psk: str = DEFAULT_PSK) -> str:
+    """Return the HMAC-SHA1 signature for a netbeacon payload prefix."""
+    return hmac.new(psk.encode("utf-8"), message.encode("ascii"), sha1).hexdigest()
+
+
+def nbmessage(seq: int = 1, psk: str = DEFAULT_PSK) -> str:
+    """Build a netbeacon message for the provided sequence number."""
+    now = int(time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple()))
+    message = f"nb;{now};{seq};"
+    return f"{message}{nbsign(message=message, psk=psk)}"
+
+
+def nbsend(destination: str, payload: str, logging: bool = False) -> bool:
+    """Send a UDP netbeacon payload to the configured destination."""
+    if not destination:
         return False
     if logging:
-        print (payload)
+        print(payload)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    sock.sendto(payload, (destination, 12345))
+    try:
+        sock.sendto(payload.encode("ascii"), (destination, DEFAULT_PORT))
+    finally:
+        sock.close()
     return True
 
-usage = "usage: %prog [options]"
-parser = OptionParser(usage)
-parser.add_option("-p","--psk", dest="psk", help="pre-shared key used by the HMAC-SHA1 (default: netbeacon)")
-parser.add_option("-s","--storeseq", dest="storeseq", action='store_true', help="store sequence and validate sequence")
-parser.add_option("-i","--iteration", dest="iteration", type=int, help="set the number of interation for sending the netbeacon")
-parser.add_option("-d","--destination", dest="destinations", action="append", help="set the destination(s) IPv4 address (default: 127.0.0.1)")
-parser.add_option("-v","--verbose", dest="verbose", action='store_true', help="output netbeacon sent")
-(options, args) = parser.parse_args()
 
-if options.psk:
-    psk = options.psk
-else:
-    psk = "netbeacon"
+def _load_destinations(values: Iterable[str] | None) -> list[str]:
+    if not values:
+        return [DEFAULT_DESTINATION]
+    return list(values)
 
-destinations = []
 
-if not options.destinations:
-    destinations.append("127.0.0.1")
-else:
-    for v in options.destinations:
-        destinations.append(v)
+def main() -> int:
+    usage = "usage: %prog [options]"
+    parser = OptionParser(usage)
+    parser.add_option("-p", "--psk", dest="psk", help=f"pre-shared key used by the HMAC-SHA1 (default: {DEFAULT_PSK})")
+    parser.add_option("-s", "--storeseq", dest="storeseq", action="store_true", help="store sequence and validate sequence")
+    parser.add_option("-i", "--iteration", dest="iteration", type=int, help="set the number of iterations for sending the netbeacon")
+    parser.add_option("-d", "--destination", dest="destinations", action="append", help=f"set the destination(s) IPv4 address (default: {DEFAULT_DESTINATION})")
+    parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="output netbeacon sent")
+    options, _args = parser.parse_args()
 
-if options.storeseq:
-    import shelve
-    s = shelve.open("netbeacon-send.seq")
-    for destination in destinations:
-        k = 'seq:' + str(destination)
-        if options.verbose:
-            print (k)
-        if k not in s:
-            s[k] = 1
-        seqstart = s[k]+1
-else:
-    seqstart = 1
+    psk = options.psk or DEFAULT_PSK
+    destinations = _load_destinations(options.destinations)
+    iteration_count = options.iteration or DEFAULT_ITERATIONS
 
-if not options.iteration:
-    options.iteration=10
+    sequence_starts = {destination: 1 for destination in destinations}
+    sequence_store = None
+    if options.storeseq:
+        sequence_store = shelve.open(SEQUENCE_DB)
+        for destination in destinations:
+            key = f"seq:{destination}"
+            if options.verbose:
+                print(key)
+            if key not in sequence_store:
+                sequence_store[key] = 0
+            sequence_starts[destination] = sequence_store[key] + 1
 
-for destination in destinations:
-    for x in range(seqstart,seqstart+options.iteration):
-        nbsend(destination=destination, payload=nbmessage(x, psk=psk), logging=options.verbose)
-        if options.storeseq:
-            s['seq:'+str(destination)] = x
+    try:
+        for destination in destinations:
+            start = sequence_starts[destination]
+            for seq in range(start, start + iteration_count):
+                nbsend(destination=destination, payload=nbmessage(seq, psk=psk), logging=bool(options.verbose))
+                if sequence_store is not None:
+                    sequence_store[f"seq:{destination}"] = seq
+    finally:
+        if sequence_store is not None:
+            sequence_store.close()
 
-if options.storeseq:
-    s.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
