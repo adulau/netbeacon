@@ -71,13 +71,16 @@ Options:
                         set the number of iterations for sending the netbeacon
   -d DESTINATION, --destination=DESTINATION
                         set the destination(s) IPv4 address (default: 127.0.0.1)
-  -v, --verbose         output netbeacon sent
+  -v, --verbose         output netbeacon sent (legacy alias of --debug-full)
+  --debug               light debug output with send summary
+  --debug-full          full debug output including per-packet details
 ```
 
 Example:
 
 ```bash
 python3 nb_send.py -s -i 3 -d 192.0.2.10 -p mysharedsecret
+python3 nb_send.py -i 5 -d 127.0.0.1 --debug
 ```
 
 ### `nb_collect.py`
@@ -94,6 +97,11 @@ Options:
   -r FILEDUMP, --read=FILEDUMP
                         read pcap file
   -e, --extended        enable extended format including pcap timestamp
+  -m, --monitor         emit periodic live statistics to stderr
+  --monitor-interval=MONITOR_INTERVAL
+                        seconds between live monitor updates (default: 5)
+  --debug               light debug output with capture summary
+  --debug-full          full debug output including packet-level details
 ```
 
 Examples:
@@ -101,6 +109,7 @@ Examples:
 ```bash
 python3 nb_collect.py -i eth0
 python3 nb_collect.py -r capture.pcap -e
+python3 nb_collect.py -i eth0 -m --monitor-interval 2 --debug
 ```
 
 ### `nb_verify.py`
@@ -115,6 +124,11 @@ Options:
   -t, --timedelta    show timedelta
   -s, --storeseq     store sequence and validate sequence
   -p PSK, --psk=PSK  pre-shared key used by the HMAC-SHA1 (default: netbeacon)
+  -m, --monitor      emit periodic live verification stats to stderr
+  --monitor-every=MONITOR_EVERY
+                     emit live stats every N messages (default: 10)
+  --debug            light debug output with final summary
+  --debug-full       full debug output including per-message traces
 ```
 
 Examples:
@@ -122,6 +136,7 @@ Examples:
 ```bash
 python3 nb_send.py -i 1 -v | python3 nb_verify.py
 python3 nb_collect.py -i eth0 | python3 nb_verify.py -s -t -p mysharedsecret
+python3 nb_collect.py -i eth0 -m --debug | python3 nb_verify.py -m --monitor-every 20 --debug
 ```
 
 ## Use-case overview
