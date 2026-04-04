@@ -9,6 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from optparse import OptionParser
+from typing import Dict
 
 NETBEACON_PATTERN = re.compile(r"^nb")
 
@@ -21,6 +22,10 @@ class CaptureStats:
     analyzed: int = 0
     matched: int = 0
     decode_errors: int = 0
+    netbeacon_parsed: int = 0
+    lost_packets: int = 0
+    reordered_packets: int = 0
+    duplicate_packets: int = 0
 
 
 def decode_payload(payload: bytes) -> str:
@@ -33,8 +38,20 @@ def _emit_stats(stats: CaptureStats, started_at: float, label: str = "stats") ->
     rate = stats.received / elapsed
     sys.stderr.write(
         f"\n[{label}] received={stats.received} analyzed={stats.analyzed} matched={stats.matched} "
-        f"decode_errors={stats.decode_errors} rate={rate:.2f} pkt/s"
+        f"decode_errors={stats.decode_errors} parsed={stats.netbeacon_parsed} lost={stats.lost_packets} "
+        f"reordered={stats.reordered_packets} duplicates={stats.duplicate_packets} rate={rate:.2f} pkt/s"
     )
+
+
+def _extract_sequence(payload: str) -> int | None:
+    """Extract the netbeacon sequence number from payload text."""
+    parts = payload.split(";")
+    if len(parts) < 4 or parts[0] != "nb":
+        return None
+    try:
+        return int(parts[2])
+    except ValueError:
+        return None
 
 
 def main() -> int:
@@ -74,6 +91,7 @@ def main() -> int:
         raise RuntimeError(f"unsupported datalink type: {pc.datalink()}")
 
     stats = CaptureStats()
+    last_seen_seq_by_source: Dict[str, int] = {}
     started_at = time.time()
     monitor_interval = max(int(options.monitor_interval or 1), 1)
     next_emit = started_at + monitor_interval
@@ -101,6 +119,19 @@ def main() -> int:
             matched = bool(NETBEACON_PATTERN.search(payload))
             if matched:
                 stats.matched += 1
+                seq = _extract_sequence(payload)
+                if seq is not None:
+                    stats.netbeacon_parsed += 1
+                    previous = last_seen_seq_by_source.get(source)
+                    if previous is not None:
+                        if seq > previous + 1:
+                            stats.lost_packets += seq - previous - 1
+                        elif seq == previous:
+                            stats.duplicate_packets += 1
+                        elif seq < previous:
+                            stats.reordered_packets += 1
+                    if previous is None or seq > previous:
+                        last_seen_seq_by_source[source] = seq
                 if options.extended:
                     print(f"{ts}|{source}|{payload}")
                 else:
