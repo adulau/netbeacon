@@ -44,12 +44,16 @@ nb;1354960619;103;854207f54c1c4be97bdf4cd4a0d1068731848698
 
 - Python 3.10 or newer recommended
 - `dpkt`
-- `pcap` Python bindings and a libpcap-compatible system library for packet capture
+- one of the following libpcap Python bindings:
+  - `pcap`
+  - `python-libpcap` (module name: `pylibpcap`)
+- a libpcap-compatible system library for packet capture
 
 Example installation:
 
 ```bash
 python3 -m pip install dpkt pcap
+python3 -m pip install dpkt python-libpcap
 ```
 
 Depending on your platform, the `pcap` package may require additional system packages such as libpcap development headers.

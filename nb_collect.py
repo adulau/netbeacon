@@ -9,7 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from optparse import OptionParser
-from typing import Dict
+from typing import Dict, Iterator, Tuple
 
 NETBEACON_PATTERN = re.compile(r"^nb")
 
@@ -54,6 +54,61 @@ def _extract_sequence(payload: str) -> int | None:
         return None
 
 
+def _load_capture_backend():
+    """Load a packet-capture backend.
+
+    Prefers the classic ``pcap`` module and falls back to ``python-libpcap``.
+    Returns a tuple of ``(backend_name, factory)`` where factory yields
+    ``(packet_iterable, datalink_type, capture_name, capture_filter, stats_fn)``.
+    """
+    try:
+        import pcap as pcap_module
+    except ModuleNotFoundError:
+        pcap_module = None
+
+    if pcap_module is not None:
+        import dpkt
+
+        def _pcap_factory(source: str, is_file: bool, capture_filter: str):
+            pc = pcap_module.pcap(source)
+            pc.setfilter(capture_filter)
+            decode_map = {
+                pcap_module.DLT_LOOP: dpkt.loopback.Loopback,
+                pcap_module.DLT_NULL: dpkt.loopback.Loopback,
+                pcap_module.DLT_EN10MB: dpkt.ethernet.Ethernet,
+            }
+            decoder = decode_map.get(pc.datalink())
+            if decoder is None:
+                raise RuntimeError(f"unsupported datalink type: {pc.datalink()}")
+            return pc, pc.datalink(), pc.name, pc.filter, pc.stats
+
+        return "pcap", _pcap_factory
+
+    try:
+        from pylibpcap.pcap import rpcap, sniff
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "nb_collect.py requires dpkt and either `pcap` or `python-libpcap` packages. "
+            "Install with `python3 -m pip install dpkt pcap` or `python3 -m pip install dpkt python-libpcap`."
+        ) from exc
+
+    import dpkt
+
+    def _iter_python_libpcap(source: str, is_file: bool, capture_filter: str) -> Iterator[Tuple[float, bytes]]:
+        if is_file:
+            for _plen, ts, pkt in rpcap(source, filters=capture_filter):
+                yield ts, pkt
+        else:
+            for _plen, ts, pkt in sniff(source, filters=capture_filter, count=-1, promisc=1):
+                yield ts, pkt
+
+    def _python_libpcap_factory(source: str, is_file: bool, capture_filter: str):
+        iterable = _iter_python_libpcap(source, is_file, capture_filter)
+        return iterable, None, source, capture_filter, None
+
+    return "python-libpcap", _python_libpcap_factory
+
+
 def main() -> int:
     usage = "usage: %prog [options]"
     parser = OptionParser(usage)
@@ -66,29 +121,26 @@ def main() -> int:
     parser.add_option("--debug-full", dest="debug_full", action="store_true", help="full debug output including packet-level details")
     options, _args = parser.parse_args()
 
-    interface = options.interface or "lo"
-    if options.filedump:
-        interface = options.filedump
+    source = options.filedump or options.interface or "lo"
+    is_file = bool(options.filedump)
+    capture_filter = "port 12345 and udp"
+    backend_name, capture_factory = _load_capture_backend()
 
-    try:
-        import dpkt
-        import pcap
-    except ModuleNotFoundError as exc:
-        raise SystemExit(
-            "nb_collect.py requires the dpkt and pcap packages. Install them with `python3 -m pip install dpkt pcap`."
-        ) from exc
+    import dpkt
 
-    pc = pcap.pcap(interface)
-    pc.setfilter("port 12345 and udp")
-
-    decode_map = {
-        pcap.DLT_LOOP: dpkt.loopback.Loopback,
-        pcap.DLT_NULL: dpkt.loopback.Loopback,
-        pcap.DLT_EN10MB: dpkt.ethernet.Ethernet,
-    }
-    decoder = decode_map.get(pc.datalink())
-    if decoder is None:
-        raise RuntimeError(f"unsupported datalink type: {pc.datalink()}")
+    packet_stream, datalink_type, capture_name, active_filter, stats_fn = capture_factory(source, is_file, capture_filter)
+    decode_map = {}
+    if datalink_type is not None:
+        try:
+            import pcap as pcap_module
+        except ModuleNotFoundError:
+            pcap_module = None
+        if pcap_module is not None:
+            decode_map = {
+                pcap_module.DLT_LOOP: dpkt.loopback.Loopback,
+                pcap_module.DLT_NULL: dpkt.loopback.Loopback,
+                pcap_module.DLT_EN10MB: dpkt.ethernet.Ethernet,
+            }
 
     stats = CaptureStats()
     last_seen_seq_by_source: Dict[str, int] = {}
@@ -99,13 +151,29 @@ def main() -> int:
 
     try:
         if debug:
-            sys.stderr.write(f"listening on {pc.name}: {pc.filter}\n")
+            sys.stderr.write(f"listening on {capture_name}: {active_filter} (backend={backend_name})\n")
 
-        for ts, pkt in pc:
+        for ts, pkt in packet_stream:
             stats.received += 1
             try:
-                frame = decoder(pkt)
-                ip = frame.data
+                if datalink_type is None:
+                    decode_error = None
+                    ip = None
+                    for decoder in (dpkt.loopback.Loopback, dpkt.ethernet.Ethernet):
+                        try:
+                            frame = decoder(pkt)
+                            ip = frame.data
+                            break
+                        except Exception as exc:
+                            decode_error = exc
+                    if ip is None:
+                        raise ValueError(f"unable to decode packet: {decode_error}")
+                else:
+                    decoder = decode_map.get(datalink_type)
+                    if decoder is None:
+                        raise RuntimeError(f"unsupported datalink type: {datalink_type}")
+                    frame = decoder(pkt)
+                    ip = frame.data
                 udp = ip.data
                 payload = decode_payload(udp.data)
                 source = socket.inet_ntoa(ip.src)
@@ -151,12 +219,15 @@ def main() -> int:
     finally:
         if debug or options.monitor:
             _emit_stats(stats, started_at, label="final")
-        try:
-            nrecv, ndrop, _nifdrop = pc.stats()
-            sys.stderr.write(f"\nlibpcap received={nrecv} dropped={ndrop}\n")
-        except Exception:
-            if debug:
-                sys.stderr.write("\nlibpcap stats unavailable\n")
+        if stats_fn is not None:
+            try:
+                nrecv, ndrop, _nifdrop = stats_fn()
+                sys.stderr.write(f"\nlibpcap received={nrecv} dropped={ndrop}\n")
+            except Exception:
+                if debug:
+                    sys.stderr.write("\nlibpcap stats unavailable\n")
+        elif debug:
+            sys.stderr.write("\nlibpcap stats unavailable for this backend\n")
 
     return 0
 
